@@ -56,8 +56,7 @@ def extract_li(driver,li):
         return None
     return job_id, job_title, company, company_location, job_link, job_type, linkedin_verified
 
-def direct_to_jobs_page(driver):
-    URL = const.LINKEDIN_RECOMMENDED_JOB_URL
+def direct_to_jobs_page(driver, URL):
     driver.get(URL)
     try:
         WebDriverWait(driver, const.JOB_PAGE_RENDERING_TIME).until(
@@ -134,9 +133,9 @@ def chrome_sign_in() -> Options:
 
 def linkedin_data_scraper(opts: Options):
     driver = webdriver.Chrome(options=opts)
-    direct_to_jobs_page(driver)
+    URL = const.LINKEDIN_RECOMMENDED_JOB_URL
+    direct_to_jobs_page(driver,URL)
     wait = WebDriverWait(driver, const.TIMEOUT_BEFORE_DATA_SCRAPING)
-    wait_short = WebDriverWait(driver, const.TIMEOUT_AFTER_SCROLL)
     # ---- MAIN SCROLL/COLLECT LOOP (replace your while True block) ----
     seen, ordered = set(), []
     ul = get_ul(wait)
