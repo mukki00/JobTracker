@@ -1,5 +1,5 @@
 import oracledb
-from DB_props import DB_props
+from DB.DB_props import DB_props
 
 
 def setup_db_connection(user:str, password:str, dsn:str):

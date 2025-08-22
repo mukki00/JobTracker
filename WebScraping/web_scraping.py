@@ -127,9 +127,12 @@ def scrape_jobs(driver,seen,ordered,ul,wait, scrollable):
         if at_bottom and stalls >= const.ITEM_COUNTS_PER_SCROLL:
             break
 
-def chrome_sign_in():
+def chrome_sign_in() -> Options:
     opts = Options()
     load_options_arguments(opts)
+    return opts
+
+def linkedin_data_scraper(opts: Options):
     driver = webdriver.Chrome(options=opts)
     direct_to_jobs_page(driver)
     wait = WebDriverWait(driver, const.TIMEOUT_BEFORE_DATA_SCRAPING)
@@ -137,9 +140,8 @@ def chrome_sign_in():
     # ---- MAIN SCROLL/COLLECT LOOP (replace your while True block) ----
     seen, ordered = set(), []
     ul = get_ul(wait)
-    scrollable = get_scrollable(driver,ul)
-    scrape_jobs(driver,seen,ordered,ul,wait,scrollable)
+    scrollable = get_scrollable(driver, ul)
+    scrape_jobs(driver, seen, ordered, ul, wait, scrollable)
     time.sleep(const.TIMEOUT_AFTER_DATA_SCRAPING)
     driver.quit()
     print(f"Loaded {len(ordered)} jobs in order.")
-
