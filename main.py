@@ -1,5 +1,3 @@
-from requests import options
-
 from DB.db_connection import setup_db_connection
 from properties.get_env_props import load_env_props
 from DB.DB_Transactions import runDBTransactions
