@@ -1,8 +1,6 @@
+import re
 from selenium import webdriver
-from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -132,15 +130,56 @@ def chrome_sign_in() -> Options:
     return opts
 
 def linkedin_data_scraper(opts: Options):
-    driver = webdriver.Chrome(options=opts)
-    URL = const.LINKEDIN_RECOMMENDED_JOB_URL
-    direct_to_jobs_page(driver,URL)
-    wait = WebDriverWait(driver, const.TIMEOUT_BEFORE_DATA_SCRAPING)
-    # ---- MAIN SCROLL/COLLECT LOOP (replace your while True block) ----
     seen, ordered = set(), []
+    driver = webdriver.Chrome(options=opts)
+    wait = WebDriverWait(driver, const.TIMEOUT_BEFORE_DATA_SCRAPING)
+    url = const.LINKEDIN_RECOMMENDED_JOB_URL
+    direct_to_jobs_page(driver,url)
+    count = scrape_top_picks_results_count(wait)
+    loops = int(count / 24) + 1
+    print (f"Estimated loops: {loops}")
+    for loop in range(loops):
+        scrape_results_in_every_page(loop, url, driver, wait, seen, ordered)
+    # driver.quit()
+    print(f"Loaded {len(ordered)} jobs in order.")
+
+def scrape_results_in_every_page(loop, url, driver, wait, seen, ordered) :
+    query_params = f"?start={loop * 24}"
+    redirect_url = url + query_params
+    direct_to_jobs_page(driver, redirect_url)
     ul = get_ul(wait)
     scrollable = get_scrollable(driver, ul)
     scrape_jobs(driver, seen, ordered, ul, wait, scrollable)
     time.sleep(const.TIMEOUT_AFTER_DATA_SCRAPING)
-    driver.quit()
-    print(f"Loaded {len(ordered)} jobs in order.")
+
+def scrape_top_picks_results_count(wait: WebDriverWait) -> int:
+    # case-insensitive helper in XPath
+    ci = "translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')"
+
+    # Try several DOM variants LinkedIn uses
+    candidates = [
+        # direct: header -> the next <small> with "results"
+        f"//h2[contains({ci}, 'top job picks for you')]/following::small[contains({ci}, 'results')][1]",
+        # header inside a container (section/div)
+        f"//section[.//h2[contains({ci}, 'top job picks for you')]]//small[contains({ci}, 'results')]",
+        f"//div[.//h2[contains({ci}, 'top job picks for you')]]//small[contains({ci}, 'results')]",
+        # ultra fallback: any small with "results" in left rail
+        f"(//aside//small[contains({ci}, 'results')] | //main//small[contains({ci}, 'results')])[1]",
+    ]
+
+    count_el = None
+    for xp in candidates:
+        try:
+            count_el = wait.until(EC.presence_of_element_located((By.XPATH, xp)))
+            if count_el:
+                break
+        except TimeoutException as e:
+            TimeoutException("Top Picks results not found")
+
+    text = count_el.text.strip()  # e.g., "4 results", "28 results"
+    m = re.search(r"\d+", text)
+    n = int(m.group()) if m else 0
+    count = n
+    print(f"{count} results")
+    return count
+

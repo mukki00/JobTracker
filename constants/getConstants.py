@@ -1,4 +1,4 @@
-LINKEDIN_RECOMMENDED_JOB_URL = "https://www.linkedin.com/jobs/collections/recommended"
+LINKEDIN_RECOMMENDED_JOB_URL = "https://www.linkedin.com/jobs/collections/it-services-and-it-consulting/"
 CHROME_EXE_PATH = "C:/Selenium/Profiles/B_Automation"
 PROFILE="Default"
 

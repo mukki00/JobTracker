@@ -9,7 +9,6 @@ if __name__ == "__main__":
     runDBTransactions(conn)
     options = chrome_sign_in()
     linkedin_data_scraper(options)
-    # scrape_jobs()
 
 
 
