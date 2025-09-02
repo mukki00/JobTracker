@@ -25,6 +25,6 @@ def insert_companies_query():
 def insert_job_post_query():
     return """
     INSERT INTO JOB_POST (
-    job_id, job_title, company, company_location, job_link, job_type, linkedin_verified, JOB_CATEGORY
+    job_id, job_title, company, company_location, job_link, job_type, linkedin_verified, JOB_CATEGORY, JOB_SOURCE
     ) VALUES (
-    :job_id, :job_title, :company, :company_location, :job_link, :job_type, :linkedin_verified, :job_category)"""
+    :job_id, :job_title, :company, :company_location, :job_link, :job_type, :linkedin_verified, :job_category, :job_source)"""

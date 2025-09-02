@@ -1,4 +1,4 @@
-LINKEDIN_RECOMMENDED_JOB_URL = [#"https://www.linkedin.com/jobs/collections/recommended",
+LINKEDIN_RECOMMENDED_JOB_URL = ["https://www.linkedin.com/jobs/collections/recommended"
                                 # "https://www.linkedin.com/jobs/collections/easy-apply/",
                                 # "https://www.linkedin.com/jobs/collections/remote-jobs/",
                                 # "https://www.linkedin.com/jobs/collections/it-services-and-it-consulting/",
@@ -10,16 +10,16 @@ LINKEDIN_RECOMMENDED_JOB_URL = [#"https://www.linkedin.com/jobs/collections/reco
                                 # "https://www.linkedin.com/jobs/collections/part-time-jobs/",
                                 # "https://www.linkedin.com/jobs/collections/social-impact/",
                                 # "https://www.linkedin.com/jobs/collections/manufacturing/",
-                                "https://www.linkedin.com/jobs/collections/real-estate/",
-                                "https://www.linkedin.com/jobs/collections/hospitals-and-healthcare/",
-                                "https://www.linkedin.com/jobs/collections/government/",
-                                "https://www.linkedin.com/jobs/collections/biotechnology/",
-                                "https://www.linkedin.com/jobs/collections/defense-and-space/",
-                                "https://www.linkedin.com/jobs/collections/operations/",
-                                "https://www.linkedin.com/jobs/collections/construction/",
-                                "https://www.linkedin.com/jobs/collections/small-business/",
-                                "https://www.linkedin.com/jobs/collections/human-services/",
-                                "https://www.linkedin.com/jobs/collections/publishing/",
+                                # "https://www.linkedin.com/jobs/collections/real-estate/",
+                                # "https://www.linkedin.com/jobs/collections/hospitals-and-healthcare/",
+                                # "https://www.linkedin.com/jobs/collections/government/",
+                                # "https://www.linkedin.com/jobs/collections/biotechnology/",
+                                # "https://www.linkedin.com/jobs/collections/defense-and-space/",
+                                # "https://www.linkedin.com/jobs/collections/operations/",
+                                # "https://www.linkedin.com/jobs/collections/construction/",
+                                # "https://www.linkedin.com/jobs/collections/small-business/",
+                                # "https://www.linkedin.com/jobs/collections/human-services/",
+                                # "https://www.linkedin.com/jobs/collections/publishing/",
                                 # "https://www.linkedin.com/jobs/collections/retail/",
                                 # "https://www.linkedin.com/jobs/collections/hospitality/",
                                 # "https://www.linkedin.com/jobs/collections/education/",
@@ -45,11 +45,15 @@ PROFILE="Default"
 #TIMOUTS
 TIMEOUT_BEFORE_DATA_SCRAPING = 20
 TIMEOUT_AFTER_DATA_SCRAPING= 1
+TIMEOUT_BEFORE_CLOSING_DRIVER = 5
+TIMEOUT_AFTER_URL_DIRECTION = 10
+TIMEOUT_BEFORE_SCROLL_ITEMS = 10
 
+MAX_ITERATION_COUNT = 10
 SLEEP_TIME_AFTER_DIRECT_TO_JOBS = 10
 JOB_PAGE_RENDERING_TIME = 15
 JOB_PAGE_ELEMENTS_RENDERING_TIME = 60
 DATA_SCRAPING_TIME = 0.15
 FETCHING_DATA_TIME = 0.6
-
+ITEMS_PER_PAGE = 24
 ITEM_COUNTS_PER_SCROLL = 5

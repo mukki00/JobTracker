@@ -1,14 +1,22 @@
+import logging
 import re
+from DB.db_connection import setup_db_connection
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
+from DB.DB_Transactions import insert_job_posts
 import time
 import constants.getConstants as const
 import constants.getElementsProps as elem
 import constants.getScripts as scripts
+import constants.getJobCategoryMap as job_category_map
+from logger.logger_config import setup_logging
+
+logger = setup_logging(__name__)
+
 def load_options_arguments(option: Options):
     option.add_argument(r"user-data-dir="+const.CHROME_EXE_PATH)
     option.add_argument(r"profile-directory="+const.PROFILE)
@@ -16,9 +24,11 @@ def load_options_arguments(option: Options):
     option.add_argument("--disable-gpu")
     option.add_argument("--no-first-run")
     option.add_argument("--no-default-browser-check")
+    option.add_argument("--remote-debugging-port=0")
 
-def get_ul(wait: WebDriverWait ) -> webdriver.remote.webelement.WebElement:
+def get_ul(wait: WebDriverWait, driver) -> webdriver.remote.webelement.WebElement:
     # UL right after the sentinel (works across class changes)
+    wait = WebDriverWait(driver, const.TIMEOUT_BEFORE_SCROLL_ITEMS)
     return wait.until(EC.presence_of_element_located(
         (By.XPATH, elem.SCROLL_ITEMS)
     ))
@@ -31,6 +41,7 @@ def extract_li(driver,li):
     try:
         driver.execute_script(scripts.SCROLL_INTO_VIEW, li)
     except StaleElementReferenceException:
+        logger.error("StaleElementReferenceException encountered while scrolling into view.")
         return None
     time.sleep(const.DATA_SCRAPING_TIME)
 
@@ -56,15 +67,16 @@ def extract_li(driver,li):
 
 def direct_to_jobs_page(driver, URL):
     driver.get(URL)
+    time.sleep(const.SLEEP_TIME_AFTER_DIRECT_TO_JOBS)
     try:
         WebDriverWait(driver, const.JOB_PAGE_RENDERING_TIME).until(
             EC.presence_of_element_located((By.ID, elem.GLOBAL_NAVBAR))
         )
         WebDriverWait(driver, const.JOB_PAGE_ELEMENTS_RENDERING_TIME).until(EC.presence_of_element_located((By.ID, elem.GLOBAL_NAV_SEARCH)))
-        print("Homepage loaded successfully.")
+        logger.info("Homepage loaded successfully.")
     except TimeoutException:
-        print("Timeout: Unable to locate the global navigation search bar. Verifying page content...")
-        print(driver.page_source)
+        logger.error("Timeout: Unable to locate the global navigation search bar. Verifying page content...")
+        logger.error(driver.page_source)
     time.sleep(const.SLEEP_TIME_AFTER_DIRECT_TO_JOBS)
 
 def extract_job_details(driver, lis, seen, ordered, job_category):
@@ -76,15 +88,16 @@ def extract_job_details(driver, lis, seen, ordered, job_category):
             job_id, job_title, company, company_location, job_link, job_type, linkedin_verified = data
             if job_id and int(job_id) not in seen:
                 seen.add(int(job_id))
-                ordered.append((job_id, job_title, company, company_location, job_link, job_type, linkedin_verified, job_category))
-                print(job_id, job_title, company, company_location, job_link, job_type, linkedin_verified, job_category)
+                ordered.append((job_id, job_title, company, company_location, job_link, job_type, linkedin_verified, job_category, "LinkedIn"))
+                logger.info(f"{job_id}, {job_title}, {company}, {company_location}, {job_link}, {job_type}, {linkedin_verified}, {job_category}, LinkedIn")
         except StaleElementReferenceException:
+            logger.error("StaleElementReferenceException encountered while extracting job details.")
             continue
 
 def scrape_jobs(driver,seen,ordered,ul,wait, scrollable, job_category):
     stalls = 0
     last_visible_count = 0
-    max_iterations = 10  # Set a reasonable limit to prevent infinite loops
+    max_iterations = const.MAX_ITERATION_COUNT  # Set a reasonable limit to prevent infinite loops
     iterations = 0
     while iterations < max_iterations:
         iterations += 1
@@ -93,8 +106,9 @@ def scrape_jobs(driver,seen,ordered,ul,wait, scrollable, job_category):
             lis = ul.find_elements(By.CSS_SELECTOR, elem.ITEMS_IN_LIST)
             extract_job_details(driver, lis, seen, ordered, job_category)
         except StaleElementReferenceException:
-            ul = get_ul(wait)
+            ul = get_ul(wait, driver)
             scrollable = get_scrollable(driver, ul)
+            logger.error("StaleElementReferenceException encountered while finding list items.")
             continue
 
         # Extract from all currently visible lis (force-render per li)
@@ -102,7 +116,7 @@ def scrape_jobs(driver,seen,ordered,ul,wait, scrollable, job_category):
         try:
             driver.execute_script(scripts.SMOOTH_SCROLL,scrollable)
         except StaleElementReferenceException:
-            ul = get_ul(wait)
+            ul = get_ul(wait, driver)
             scrollable = get_scrollable(driver, ul)
             continue
 
@@ -117,8 +131,9 @@ def scrape_jobs(driver,seen,ordered,ul,wait, scrollable, job_category):
                 stalls = 0
                 last_visible_count = now_visible_count
         except StaleElementReferenceException:
-            ul = get_ul(wait)
+            ul = get_ul(wait, driver)
             scrollable = get_scrollable(driver, ul)
+            logger.error("StaleElementReferenceException encountered while scraping jobs.")
             continue
 
 
@@ -127,116 +142,42 @@ def scrape_jobs(driver,seen,ordered,ul,wait, scrollable, job_category):
             break
 
     if iterations >= max_iterations:
-        print("Reached maximum iterations. Exiting to prevent infinite loop.")
+        logger.info("Reached maximum iterations. Exiting to prevent infinite loop.")
 
 def chrome_sign_in() -> Options:
     opts = Options()
     load_options_arguments(opts)
     return opts
 
-def linkedin_data_scraper(opts: Options, job_ids_in_db: set):
+def linkedin_data_scraper(opts: Options, job_ids_in_db: set, user: str, password: str, dsn: str):
     seen = job_ids_in_db
-    ordered = []
-    driver = webdriver.Chrome(options=opts)
-    wait = WebDriverWait(driver, const.TIMEOUT_BEFORE_DATA_SCRAPING)
     urls = const.LINKEDIN_RECOMMENDED_JOB_URL
     for url in urls:
-        job_category = "Recommended"
-        if "recommended" in url:
-            job_category = "Recommended"
-        elif "easy-apply" in url:
-            job_category = "Easy Apply"
-        elif "remote-jobs" in url:
-            job_category = "Remote"
-        elif "it-services-and-it-consulting" in url:
-            job_category = "IT"
-        elif "human-resources" in url:
-            job_category = "HR"
-        elif "financial-services" in url:
-            job_category = "Finance"
-        elif "sustainability" in url:
-            job_category = "Sustainability"
-        elif "hybrid" in url:
-            job_category = "Hybrid"
-        elif "pharmaceuticals" in url:
-            job_category = "Pharma"
-        elif "part-time-jobs" in url:
-            job_category = "Part-time"
-        elif "social-impact" in url:
-            job_category = "Social impact"
-        elif "manufacturing" in url:
-            job_category = "Manufacturing"
-        elif "real-estate" in url:
-            job_category = "Real estate"
-        elif "hospitals-and-healthcare" in url:
-            job_category = "Healthcare"
-        elif "government" in url:
-            job_category = "Government"
-        elif "biotechnology" in url:
-            job_category = "Biotech"
-        elif "defense-and-space" in url:
-            job_category = "Defense and space"
-        elif "operations" in url:
-            job_category = "Operations"
-        elif "construction" in url:
-            job_category = "Construction"
-        elif "small-business" in url:
-            job_category = "Small biz"
-        elif "human-services" in url:
-            job_category = "Human services"
-        elif "publishing" in url:
-            job_category = "Publishing"
-        elif "retail" in url:
-            job_category = "Retail"
-        elif "hospitality" in url:
-            job_category = "Hospitality"
-        elif "education" in url:
-            job_category = "Education"
-        elif "media" in url:
-            job_category = "Media"
-        elif "restaurants" in url:
-            job_category = "Restaurants"
-        elif "transportation-and-logistics" in url:
-            job_category = "Logistics"
-        elif "digital-security" in url:
-            job_category = "Digital security"
-        elif "marketing-and-advertising" in url:
-            job_category = "Marketing"
-        elif "career-growth" in url:
-            job_category = "Career growth"
-        elif "higher-edu" in url:
-            job_category = "Higher ed"
-        elif "food-and-beverages" in url:
-            job_category = "Food & bev"
-        elif "non-profits" in url:
-            job_category = "Non-profit"
-        elif "gaming" in url:
-            job_category = "Gaming"
-        elif "staffing-and-recruiting" in url:
-            job_category = "Recruiting"
-        elif "veterinary-medicine" in url:
-            job_category = "Veterinary med"
-        elif "civil-eng" in url:
-            job_category = "Civil eng"
-        elif "work-life-balance" in url:
-            job_category = "Work-life balance"
-        elif "apparel-and-fashion" in url:
-            job_category = "Fashion"
+        driver = webdriver.Chrome(options=opts)
+        wait = WebDriverWait(driver, const.TIMEOUT_BEFORE_DATA_SCRAPING)
+        ordered = []
+        job_category = job_category_map.get_job_category(url)
         direct_to_jobs_page(driver,url)
         count = scrape_top_picks_results_count(wait)
-        loops = int(count / 24) + 1
-        print (f"Estimated loops: {loops}")
+        loops = int(count / const.ITEMS_PER_PAGE) + 1
+        logger.info (f"Estimated loops: {loops}")
         for loop in range(loops):
             scrape_results_in_every_page(loop, url, driver, wait, seen, ordered, job_category)
-    driver.quit()
-    print(f"Loaded {len(ordered)} jobs in order.")
-    return ordered
+        logger.info(f"Loaded {len(ordered)} jobs in order.")
+        fetch_data_to_db(ordered, user, password, dsn)
+        time.sleep(const.TIMEOUT_BEFORE_CLOSING_DRIVER)
+        driver.quit()
+
+def fetch_data_to_db(ordered, user: str, password: str, dsn: str):
+    if ordered:
+        conn = setup_db_connection(user, password, dsn)
+        insert_job_posts(conn, ordered)
 
 def scrape_results_in_every_page(loop, url, driver, wait, seen, ordered, job_category) :
-    query_params = f"?start={loop * 24}"
+    query_params = f"?start={loop * const.ITEMS_PER_PAGE}"
     redirect_url = url + query_params
     direct_to_jobs_page(driver, redirect_url)
-    ul = get_ul(wait)
+    ul = get_ul(wait, driver)
     scrollable = get_scrollable(driver, ul)
     scrape_jobs(driver, seen, ordered, ul, wait, scrollable, job_category)
     time.sleep(const.TIMEOUT_AFTER_DATA_SCRAPING)
@@ -263,12 +204,13 @@ def scrape_top_picks_results_count(wait: WebDriverWait) -> int:
             if count_el:
                 break
         except TimeoutException as e:
+            logger.error("Top Picks results not found")
             TimeoutException("Top Picks results not found")
 
     text = count_el.text.strip()  # e.g., "4 results", "28 results"
     m = re.search(r"\d+", text)
     n = int(m.group()) if m else 0
     count = n
-    print(f"{count} results")
+    logger.info(f"{count} results")
     return count
 
