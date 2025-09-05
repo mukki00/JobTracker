@@ -65,15 +65,27 @@ def extract_li(driver,li):
         return None
     return job_id, job_title, company, company_location, job_link, job_type, linkedin_verified
 
+def if_no_jobs_found(driver):
+    try:
+        no_jobs_card = driver.find_element(By.CLASS_NAME, "jobs-search-results-list__no-jobs-available-card")
+        logger.info("No jobs available: Jobs no longer available were omitted from results.")
+        return True # Stop further scraping
+    except Exception:
+        return False
+
+
 def direct_to_jobs_page(driver, URL):
     driver.get(URL)
     time.sleep(const.SLEEP_TIME_AFTER_DIRECT_TO_JOBS)
     try:
-        WebDriverWait(driver, const.JOB_PAGE_RENDERING_TIME).until(
-            EC.presence_of_element_located((By.ID, elem.GLOBAL_NAVBAR))
-        )
-        WebDriverWait(driver, const.JOB_PAGE_ELEMENTS_RENDERING_TIME).until(EC.presence_of_element_located((By.ID, elem.GLOBAL_NAV_SEARCH)))
-        logger.info("Homepage loaded successfully.")
+        if not (if_no_jobs_found(driver)):
+            WebDriverWait(driver, const.JOB_PAGE_RENDERING_TIME).until(
+                EC.presence_of_element_located((By.ID, elem.GLOBAL_NAVBAR))
+            )
+            WebDriverWait(driver, const.JOB_PAGE_ELEMENTS_RENDERING_TIME).until(EC.presence_of_element_located((By.ID, elem.GLOBAL_NAV_SEARCH)))
+            logger.info("Homepage loaded successfully.")
+        else:
+            return
     except TimeoutException:
         logger.error("Timeout: Unable to locate the global navigation search bar. Verifying page content...")
         logger.error(driver.page_source)
