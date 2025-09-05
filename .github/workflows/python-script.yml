@@ -15,6 +15,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Set environment variables
+        run: |
+          echo "DB_USER=${{ secrets.DB_USER }}" >> $GITHUB_ENV
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> $GITHUB_ENV
+          echo "DB_DSN=${{ secrets.DB_DSN }}" >> $GITHUB_ENV
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Run main.py
