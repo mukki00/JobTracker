@@ -28,10 +28,15 @@ def load_options_arguments(option: Options):
 
 def get_ul(wait: WebDriverWait, driver) -> webdriver.remote.webelement.WebElement:
     # UL right after the sentinel (works across class changes)
-    wait = WebDriverWait(driver, const.TIMEOUT_BEFORE_SCROLL_ITEMS)
-    return wait.until(EC.presence_of_element_located(
-        (By.XPATH, elem.SCROLL_ITEMS)
-    ))
+    try:
+        wait = WebDriverWait(driver, const.TIMEOUT_BEFORE_SCROLL_ITEMS)
+        return wait.until(EC.presence_of_element_located((By.XPATH, elem.SCROLL_ITEMS)))
+    except TimeoutException:
+        logger.info("No job list found on page (possible filter / no jobs). Skipping this page.")
+        return None
+    except Exception:
+        logger.error("Unexpected error while locating job list.", exc_info=True)
+        return None
 
 def get_scrollable(driver, el):
     return driver.execute_script(scripts.SCROLL_BODY, el)
@@ -167,16 +172,16 @@ def linkedin_data_scraper(opts: Options, job_ids_in_db: set, user: str, password
     for url in urls:
         driver = webdriver.Chrome(options=opts)
         wait = WebDriverWait(driver, const.TIMEOUT_BEFORE_DATA_SCRAPING)
-        ordered = []
         job_category = job_category_map.get_job_category(url)
         direct_to_jobs_page(driver,url)
         count = scrape_top_picks_results_count(wait)
         loops = int(count / const.ITEMS_PER_PAGE) + 1
         logger.info (f"Estimated loops: {loops}")
         for loop in range(loops):
+            ordered = []
             scrape_results_in_every_page(loop, url, driver, wait, seen, ordered, job_category)
-        logger.info(f"Loaded {len(ordered)} jobs in order.")
-        fetch_data_to_db(ordered, user, password, dsn)
+            logger.info(f"Loaded {len(ordered)} jobs in order.")
+            fetch_data_to_db(ordered, user, password, dsn)
         time.sleep(const.TIMEOUT_BEFORE_CLOSING_DRIVER)
         driver.quit()
 
@@ -190,7 +195,13 @@ def scrape_results_in_every_page(loop, url, driver, wait, seen, ordered, job_cat
     redirect_url = url + query_params
     direct_to_jobs_page(driver, redirect_url)
     ul = get_ul(wait, driver)
+    if not ul:
+        logger.info(f"No jobs on page `{redirect_url}`. Moving to next page.")
+        return
     scrollable = get_scrollable(driver, ul)
+    if not scrollable:
+        logger.info(f"Scrollable element not found on page `{redirect_url}`. Moving to next page.")
+        return
     scrape_jobs(driver, seen, ordered, ul, wait, scrollable, job_category)
     time.sleep(const.TIMEOUT_AFTER_DATA_SCRAPING)
 
