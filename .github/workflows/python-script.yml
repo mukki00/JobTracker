@@ -25,6 +25,12 @@ jobs:
           echo "DB_USER=${{ secrets.DB_USER }}" >> $GITHUB_ENV
           echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> $GITHUB_ENV
           echo "DB_DSN=${{ secrets.DB_DSN }}" >> $GITHUB_ENV
+      - name: Check database connectivity
+        run: |
+          echo "Pinging database host..."
+          ping -c 4 adb.ap-mumbai-1.oraclecloud.com
+          echo "Testing database port..."
+          nc -zv adb.ap-mumbai-1.oraclecloud.com 1522
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Run main.py
