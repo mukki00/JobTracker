@@ -9,9 +9,6 @@ def load_env_props():
     env = os.getenv("ENV")
     wallet_dir = str(Path(__file__).parent.parent / "Wallet_FREEPDB1")
     if not user or not password or not dsn:
-        print("user:", user)
-        print("password:", password)
-        print("dsn:", dsn)
-        raise ValueError("Database connection properties are not set in the environment variables.")
+        raise ValueError("Database connection properties are not set in the environment variables.", user, password, dsn)
     return user, password, dsn, wallet_dir, env
 
